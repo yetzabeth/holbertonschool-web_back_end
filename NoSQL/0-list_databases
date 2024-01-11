@@ -1,0 +1,16 @@
+// 0-list_databases
+
+// Connect to MongoDB
+var conn = new Mongo();
+var db = conn.getDB("admin");
+
+// List all databases
+var dbs = db.adminCommand({ listDatabases: 1 });
+
+// Print the list of databases
+dbs.databases.forEach(function(database) {
+    print(database.name + "\t" + database.sizeOnDisk);
+});
+
+// Exit the script
+quit();

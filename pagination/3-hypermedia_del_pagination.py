@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-""" Hypermedia pagination """
+"""
+Deletion-resilient hypermedia pagination
+"""
+
 import csv
 import math
-from typing import List, Dict, Any
-
-
-def index_range(page, page_size):
-    """ return a tuple of size two containing a start index and an end index
-        corresponding to the range of indexes to return in a list for those
-        particular pagination parameters. """
-    if page and page_size:
-        start_index = (page - 1) * page_size
-        end_index = start_index + page_size
-        return start_index, end_index
+from typing import List, Dict
 
 
 class Server:
@@ -22,6 +15,7 @@ class Server:
 
     def __init__(self):
         self.__dataset = None
+        self.__indexed_dataset = None
 
     def dataset(self) -> List[List]:
         """Cached dataset
@@ -34,26 +28,35 @@ class Server:
 
         return self.__dataset
 
-    def get_page(self, page: int = 1, page_size: int = 10) -> List[List]:
-        """ obtains the indexes and return corresponding pages """
-        assert type(page) == int and page > 0
-        assert type(page_size) == int and page_size > 0
-        start, end = index_range(page, page_size)
-        pages = []
-        if start >= len(self.dataset()):
-            return pages
-        pages = self.dataset()
-        return pages[start:end]
+    def indexed_dataset(self) -> Dict[int, List]:
+        """Dataset indexed by sorting position, starting at 0
+        """
+        if self.__indexed_dataset is None:
+            dataset = self.dataset()
+            truncated_dataset = dataset[:1000]
+            self.__indexed_dataset = {
+                i: dataset[i] for i in range(len(dataset))
+            }
+        return self.__indexed_dataset
 
-    def get_hyper(self, page: int = 1, page_size: int = 10) -> Dict[str, Any]:
-        """ returns a dictionary """
-        assert type(page) == int and page > 0
-        assert type(page_size) == int and page_size > 0
-        total_pages = math.floor(len(self.dataset()) / page_size)
-        return {'page_size': len(self.get_page(page, page_size)),
-                'page': page,
-                'data': self.get_page(page, page_size),
-                'next_page': page + 1 if page + 1 < total_pages else None,
-                'prev_page': page - 1 if page > 1 else None,
-                'total_pages': total_pages
-                }
+    def get_hyper_index(self, index: int = None, page_size: int = 10) -> Dict:
+        """ return all data"""
+        assert type(index) == int and type(page_size) == int
+        assert 0 <= index < len(self.indexed_dataset())
+
+        data = []
+        next_index = index + page_size
+
+        for i in range(index, next_index):
+            if self.indexed_dataset().get(i):
+                data.append(self.indexed_dataset()[i])
+            else:
+                i += 1
+                next_index += 1
+
+        return {
+            'data': data,
+            'index': index,
+            'next_index': next_index,
+            'page_size': page_size
+        }
